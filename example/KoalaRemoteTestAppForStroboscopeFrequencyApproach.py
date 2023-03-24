@@ -1,0 +1,74 @@
+from pyKoalaRemote import client
+from pathlib import Path
+import numpy as np
+import matplotlib.pyplot as plt
+import time
+
+#create instance to class pyRemote
+remote = client.pyKoalaRemoteClient()
+#Connect and Login
+remote.ConnectAndLoginDialog()
+
+#Open a 1 wavelength configuration.
+remote.OpenConfig(147)
+
+#Open main display windows
+remote.OpenPhaseWin()
+remote.OpenIntensityWin()
+remote.OpenHoloWin()
+remote.OpenStroboWin()
+
+#Example on how to set record parameters in stroboscopic window
+#Here, we choose to record the phase and intensity data in bin format
+#SetStroboscopeRecordDataType(recordPhaseAsBin, recordPhaseAsTiff, recordIntensityAsBin, recordIntensityAsTiff)
+remote.SetStroboscopeRecordDataType(True, False, True, False)
+
+#Sets the stroboscopic tool to record immediately on start.
+remote.SetStroboscopeRecordAtStartStatus(True);
+
+#Gives the root path to record the data
+remote.SetStroboscopeRecordPath(r'C:\temp')
+
+#Modify the channel 1 parameters
+#SetStroboscopeChannel1Parameters(channelEnabled, chosenWaveform, voltage_in_mV, offset_in_mV, phaseDelay_deg, offsetType)
+#Example: Activate channel 1, select wavelength 1, put 8V as voltage, -2V as offset, phase delay 0 degrees, and manual offset
+remote.SetStroboscopeChannel1Parameters(True, 1, 8000, -2000, 0, 0)
+
+#Set the laser pulse duty cycle in percent
+remote.SetStroboscopeLaserPulseDutyCycle(20)
+
+#For the frequency approach to work correctly, we need to set the fixed frequency to the target frequency to ensure the stroboscope is in the correct frequency range.
+#Frequency = 7MHz
+remote.SetStroboscopeFixedFrequency(7000000)
+
+#Increase the angle step (move the green bar from the frequency slider towards higher frequencies
+remote.IncreaseStroboscopeAngleStep()
+
+#Decrease the angle step (move the green bar from the frequency slider towards lower frequencies
+remote.DecreaseStroboscopeAngleStep()
+
+#remote.SetStroboscopeNumberOfSamplesPerPeriod(16);
+#Modify the number of samples per period to their maximum admissible value for a given frequency range
+#indicated by the green bar on the frequency slider.
+remote.MaximizeStroboscopeNumberOfSamples()
+
+#Frequency Approach
+#Enable the frequency Approach mode
+remote.SetStroboscopeFrequencyApproachEnabled(True)
+
+#Set the frequency approach from 6.8MHz and 7MHz by increasing the frequency by steps of 10kHz, with a waiting time of 100ms.
+#The maximal step size is 20kHz
+remote.SetStroboscopeFrequencyApproachParameters(6950000, 7000000, 10000, 100)
+
+#Start the stroboscope at a fixed frequency in continuous mode
+remote.StartStroboscopeFixedFrequency(0, -1)
+#Wait 10s
+time.sleep(10)
+
+#Stop the stroboscope
+remote.StopStroboscope()
+
+#Close the stroboscopic window
+#remote.CloseStroboWin();
+
+remote.Logout()
