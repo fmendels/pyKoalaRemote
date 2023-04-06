@@ -18,13 +18,15 @@ remote.OpenIntensityWin()
 remote.OpenHoloWin()
 remote.OpenStroboWin()
 
+remote.SetStroboscopeFrequencyScanEnabled(False);
+
 #Example on how to set record parameters in stroboscopic window
 #Here, we choose to record the phase and intensity data in bin format
 #SetStroboscopeRecordDataType(recordPhaseAsBin, recordPhaseAsTiff, recordIntensityAsBin, recordIntensityAsTiff)
 remote.SetStroboscopeRecordDataType(True, False, True, False)
 
 #Sets the stroboscopic tool to record immediately on start.
-remote.SetStroboscopeRecordAtStartStatus(True);
+#remote.SetStroboscopeRecordAtStartStatus(True);
 
 #Gives the root path to record the data
 remote.SetStroboscopeRecordPath(r'C:\temp')
@@ -32,49 +34,58 @@ remote.SetStroboscopeRecordPath(r'C:\temp')
 #Modify the channel 1 parameters
 #SetStroboscopeChannel1Parameters(channelEnabled, chosenWaveform, voltage_in_mV, offset_in_mV, phaseDelay_deg, offsetType)
 #Example: Activate channel 1, select wavelength 1, put 8V as voltage, -2V as offset, phase delay 0 degrees, and manual offset
-remote.SetStroboscopeChannel1Parameters(True, 1, 8000, -2000, 0, 0)
+remote.SetStroboscopeChannel1Parameters(True, 1, 1000, 0, 0, 0)
 
 #Example: if you have a second channel 2 available and do not use it for this experiment.
 remote.SetStroboscopeChannel2Parameters(False, 1, 0, 0, 0, 0)
 
 #Set the laser pulse duty cycle in percent
-remote.SetStroboscopeLaserPulseDutyCycle(20)
+remote.SetStroboscopeLaserPulseDutyCycle(10)
 
 #For the frequency approach to work correctly, we need to set the fixed frequency to the target frequency to ensure the stroboscope is in the correct frequency range.
-#Frequency = 7MHz
-remote.SetStroboscopeFixedFrequency(7000000)
+#Frequency = 9.7kHz
+remote.SetStroboscopeFixedFrequency(9700)
 
 #Increase the angle step (move the green bar from the frequency slider towards higher frequencies
-remote.IncreaseStroboscopeAngleStep()
+#remote.IncreaseStroboscopeAngleStep()
 
 #Decrease the angle step (move the green bar from the frequency slider towards lower frequencies
-remote.DecreaseStroboscopeAngleStep()
+#remote.DecreaseStroboscopeAngleStep()
 
-#remote.SetStroboscopeNumberOfSamplesPerPeriod(16);
-#Modify the number of samples per period to their maximum admissible value for a given frequency range
-#indicated by the green bar on the frequency slider.
-remote.MaximizeStroboscopeNumberOfSamples()
+#Modify the number of samples per period to 6
+remote.SetStroboscopeNumberOfSamplesPerPeriod(6);
 
-#Frequency Approach
-#Enable the frequency Approach mode
-remote.SetStroboscopeFrequencyApproachEnabled(True)
+#Frequency Scan
+#Enable the frequency scan mode
+remote.SetStroboscopeFrequencyScanEnabled(True)
 
-#Set the frequency approach from 6.8MHz and 7MHz by increasing the frequency by steps of 10kHz, with a waiting time of 100ms.
-#The maximal step size is 20kHz
-remote.SetStroboscopeFrequencyApproachParameters(6950000, 7000000, 10000, 100)
+#Set the frequency scan from 9.7kHz to 10kHz by increasing the frequency by steps of 1kHz.
+#SetStroboscopeFrequencyScanParameters(self, minimumFrequency_Hz, maximumFrequency_Hz, stepSize_Hz, numberOfPeriodsPerFrequency, isDecreasing)
+remote.SetStroboscopeFrequencyScanParameters(9700, 10000, 1000, 2, False)
 
-#Start the stroboscope at a fixed frequency in continuous mode
-remote.StartStroboscopeFixedFrequency(0, -1)
+#Here, we choose to record the phase and intensity data in bin format
+#SetStroboscopeRecordDataType(recordPhaseAsBin, recordPhaseAsTiff, recordIntensityAsBin, recordIntensityAsTiff)
+remote.SetStroboscopeRecordDataType(True, False, True, False)
+
+#Sets the stroboscopic tool to record immediately on start.
+#remote.SetStroboscopeRecordAtStartStatus(True);
+
+#Gives the root path to record the data
+remote.SetStroboscopeRecordPath(r'C:\temp')
+
+#Start the recording of the frequency scan
+remote.RecordStroboscopeFrequencyScan()
+
 #Wait 10s
 time.sleep(10)
 
-#Stop the stroboscope
-remote.StopStroboscope()
+#Stop the stroboscope : Not needed
+#remote.StopStroboscope()
 
-#Disable the frequency Approach mode
-remote.SetStroboscopeFrequencyApproachEnabled(False)
+#Disable the frequency scan mode
+remote.SetStroboscopeFrequencyScanEnabled(False)
 
 #Close the stroboscopic window
-#remote.CloseStroboWin();
+remote.CloseStroboWin();
 
 remote.Logout()

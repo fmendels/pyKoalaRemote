@@ -8,19 +8,20 @@ remote = client.pyKoalaRemoteClient()
 #Connect and Login
 remote.ConnectAndLoginDialog()
 
-#Open a 2 wavelenghts configuration.
-remote.OpenConfigDialog()
+#Open a 2 wavelengths configuration.
+remote.OpenConfig(137)
 
 #Open main display windows
 remote.OpenPhaseWin();
 remote.OpenIntensityWin();
 remote.OpenHoloWin();
+remote.OpenStroboWin();
 
 #This block records an hologram so that you can later work offline with the rest of the script. 
 #Set logical source 0 (the 1st source of the current configuration) to ON
 remote.SetSourceState(0, True, True)
 #Set logical source 1 (the 2nd source of the current configuration) to ON
-remote.SetSourceState(1, True, True)
+#remote.SetSourceState(1, True, True)
 #Acquire on hologram
 remote.Acquisition2L()
 remote.ResetGrab()
@@ -36,30 +37,31 @@ remote.LoadHolo(str(path/'holo.tiff'), 2);
 remote.SelectDisplayWL(8192);
 
 #Save hologram image
-remote.SaveImageToFile(1, str(path/'holo.tiff'));
+#remote.SaveImageToFile(1, str(path/'holo.tiff'));
 #Save intensity image
-remote.SaveImageToFile(2, str(path/'intensity.tiff'));
+#remote.SaveImageToFile(2, str(path/'intensity.tiff'));
 #Save phase image (as displayed, which means phase lamabda 1)
-remote.SaveImageToFile(4, str(path/'phase.tif'));
+#remote.SaveImageToFile(4, str(path/'phase.tif'));
 #//Save intensity float in bin
-remote.SaveImageFloatToFile(2, str(path/'intensity.bin'), True);
+#remote.SaveImageFloatToFile(2, str(path/'intensity.bin'), True);
 #//Save phase float in bin
-remote.SaveImageFloatToFile(4, str(path/'phase.bin'), True);
-print('files saved in',str(path))
+#remote.SaveImageFloatToFile(4, str(path/'phase.bin'), True);
+#print('files saved in',str(path))
 
 #//This block only works for 2 wavelengths configurations
 #//Display lambda 2 image in intensity window
-remote.SelectDisplayWL(4096);
+#remote.SelectDisplayWL(4096);
 #//Display lambda 2 image in phase window
-remote.SelectDisplayWL(16384);
+#remote.SelectDisplayWL(16384);
 #//Save intensity image (as displayed, which means intensity lambda 2)
-remote.SaveImageToFile(2, str(path/'intensity2.tiff'));
+#remote.SaveImageToFile(2, str(path/'intensity2.tiff'));
 #//Save phase image (as displayed, which means phase lambda 2)
-remote.SaveImageToFile(4, str(path/'phase2.tif'));
-remote.SaveImageFloatToFile(2, str(path/'intensity2.bin'), True);
-remote.SaveImageFloatToFile(4, str(path/'phase2.bin'), True);
+#remote.SaveImageToFile(4, str(path/'phase2.tif'));
+#remote.SaveImageFloatToFile(2, str(path/'intensity2.bin'), True);
+#remote.SaveImageFloatToFile(4, str(path/'phase2.bin'), True);
 
 #//Gets the current reconstruction distance
+
 recDist = remote.GetRecDistCM();
 #//Set a new reconstruction distance
 remote.SetRecDistCM(recDist * 1.1);
@@ -85,12 +87,15 @@ plt.ylabel('OPL [nm]')
 plt.show()
 
 #//Reset phase correction segemnts
-remote.ResetCorrSegment();
+#remote.ResetCorrSegment();
 #Add new phase profile correction
-remote.AddCorrSegment(100, 100, 500, 1);
-remote.AddCorrSegment(200, 200, 600, 0);
+#remote.AddCorrSegment(100, 100, 500, 1);
+#remote.AddCorrSegment(200, 200, 600, 0);
 #//Compute 1D phase correction using tilt method
-remote.ComputePhaseCorrection(0, 1);
+#remote.ComputePhaseCorrection(0, 1);
+
+remote.OpenStroboWin()
+remote.SetStroboscopeFrequencyScanEnabled(True);
 
 #Logout
 remote.Logout()
