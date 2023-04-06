@@ -3,6 +3,7 @@
 This class enables easy access to Koala TCP/IP remote interface
 Prompt dialog for connection and login
 Get functions return numpy Array
+2023-03-30 Modified by TCO (all functions using Remote Manual orders)
 """
 #from pythonnet import get_runtime_info
 #a = get_runtime_info()
@@ -12,6 +13,7 @@ from pyKoalaRemote import remote_utils as ru
 import numpy as np
 import sys
 import clr
+import time
 
 #Add required dotNet reference
 clr.AddReference("System")
@@ -41,6 +43,14 @@ class pyKoalaRemoteClient:
             import KoalaClient
             #Define KoalaRemoteClient host
             self.host=KoalaClient.KoalaTCPClient()
+        
+        #init to None parameters:
+        self.roiWidth = None
+        self.roiHeight = None
+        self.height = None
+        self.width = None
+        self.roiStride = None
+        self.username = None
         
         #check if host is properly initialized
         try :
@@ -187,37 +197,66 @@ class pyKoalaRemoteClient:
         return self.host.Acquisition2L()
     
     def AddCorrSegment(self,top,left,length,orientation):
+        """
+        Add Correction segments
+        top, left position and length
+        orientation: 0 for horizontal and 1 for vertical
+        """
+        #left+length cannot be larger than width
+        #top+length cannot be larger than height
+        if self.roiWidth is None or self.roiWidth is None:
+            self.updateROI()
+        if orientation == 0:
+            if left+length > self.roiWidth:
+                length = self.roiWidth-left
+        if orientation == 1:
+            if top+length > self.roiHeight:
+                length = self.roiHeight-top 
         return self.host.AddCorrSegment(top,left,length,orientation)
+    
+    def AddCorrZone(self, top, left, width, height):
+        if self.roiWidth is None or self.roiWidth is None:
+            self.updateROI()
 
-    def AddEllipticalUserDefinedMaskZoneToPhase(self, centerX, centerY, radiusX, radiusY):
-        return self.host.AddEllipticalUserDefinedMaskZoneToPhase(centerX, centerY, radiusX, radiusY)
+        if left+width > self.roiWidth:
+            width = self.roiWidth-left
+        if top+height > self.roiHeight:
+            height= self.roiHeight-top 
+        return self.host.AddCorrZone(top, left, width, height)
+
 
     def AddPhaseOffsetAdjustmentZone(self, top, left, width, height):
         return self.host.AddPhaseOffsetAdjustmentZone(top, left, width, height)
 
-    def AddRectangularUserDefinedMaskZoneToPhase(self, top, left, width, height):
-        return self.host.AddRectangularUserDefinedMaskZoneToPhase(top, left, width, height)
-
     def AlgoResetPhaseMask(self):
         return self.host.AlgoResetPhaseMask()
 
-    def ApplyNewDutyCycleInLiveMode(self):
-        return self.host.ApplyNewDutyCycleInLiveMode()
-
-    def ApplyNewVoltageAndOffsetInLiveModeForChannelNumber(self, channelNumber):
-        return self.host.ApplyNewVoltageAndOffsetInLiveModeForChannelNumber(channelNumber)
-
     def AxisInstalled(self,axisId):
+        '''
+        0: X axis
+        1: Y axis
+        2: Z axis
+        3: Theta axis (rotation, system-dependent)
+        4: Phi axis (rotation, system-dependent)
+        5: Psi axis (rotation, system-dependent)
+        '''
         return self.host.AxisInstalled(axisId)
 
-    def CloseFastHologramsRecordWin(self):
-        return self.host.CloseFastHologramsRecordWin()
 
+
+    def ComputePhaseCorrection(self, fitMethod, degree):
+        """
+        fitMethod = 0 only tilt = polynomial degree=1
+        fitMethod = 1 : polynomial defined by degree
+        fitMethod = 4: 2D polynomial defined by degree
+        """
+        if fitMethod == 0:
+            degree = 1 #cannot use other order for fitMethod = 1
+        return self.host.ComputePhaseCorrection(fitMethod, degree)
+    
     def CloseIntensityWin(self):
         return self.host.CloseIntensityWin()
 
-    def CloseMaskSettingsWin(self):
-        return self.host.CloseMaskSettingsWin()
 
     def ClosePhaseWin(self):
         return self.host.ClosePhaseWin()
@@ -225,18 +264,7 @@ class pyKoalaRemoteClient:
     def CloseReconstructionSettingsWin(self):
         return self.host.CloseReconstructionSettingsWin()
 
-    def CloseReconstructionToDiskSequenceWin(self):
-        return self.host.CloseReconstructionToDiskSequenceWin()
-
-    def CloseStroboWin(self):
-        return self.host.CloseStroboWin()
-
-    def ComputePhaseCorrection(self, fitMethod, degree):
-        return self.host.ComputePhaseCorrection(fitMethod, degree)
-
-    def DecreaseStroboscopeAngleStep(self):
-        return self.host.DecreaseStroboscopeAngleStep()
-
+    
     def DigitizerAcquiring(self):
         return self.host.DigitizerAcquiring()
 
@@ -250,6 +278,9 @@ class pyKoalaRemoteClient:
         return self.host.FastWDSearch()
     
     def GetCameraShutterUs(self):
+        '''
+        Return: Int32: The shutter value, in [us]
+        '''
         return self.host.GetCameraShutterUs()
 
     def GetChosenOPLPosition(self, oplId):
@@ -300,9 +331,6 @@ class pyKoalaRemoteClient:
     def GetUnwrap2DState(self):
         return self.host.GetUnwrap2DState()
 
-    def IncreaseStroboscopeAngleStep(self):
-        return self.host.IncreaseStroboscopeAngleStep()
-
     def InitXYZStage(self,withProgressBar=False,moveToCenter=False):
         return self.host.InitXYZStage(withProgressBar,moveToCenter)
     
@@ -311,9 +339,12 @@ class pyKoalaRemoteClient:
     
     def LoadHolo(self,path,numLambda):
         return self.host.LoadHolo(path,numLambda)
-
-    def MaximizeStroboscopeNumberOfSamples(self):
-        return self.host.MaximizeStroboscopeNumberOfSamples()
+    
+    def ModifyFilterSwitchStatus(self, status):
+        """
+        Modify filter switch status to enable (True) or disable (False)
+        """
+        return self.host.ModifyFilterSwitchStatus(status)
 
     def MoveAxes(self, absMove, mvX, mvY, mvZ, mvTh, distX, distY, distZ, distTh, accX, accY, accZ, accTh, waitEnd=True):
         return self.host.MoveAxes(absMove, mvX, mvY, mvZ, mvTh, distX, distY, distZ, distTh, accX, accY, accZ, accTh, waitEnd)
@@ -333,9 +364,6 @@ class pyKoalaRemoteClient:
     def OnDistanceChange(self):
         return self.host.OnDistanceChange()
 
-    def OpenFastHologramsRecordWin(self):
-        return self.host.OpenFastHologramsRecordWin()
-
     def OpenFrmTopography(self):
         return self.host.OpenFrmTopography()
         
@@ -347,24 +375,13 @@ class pyKoalaRemoteClient:
     
     def OpenPhaseWin(self,withoutColorbar=False,doReconstruction=True,updateXYScale=True):
         return self.host.OpenPhaseWin(withoutColorbar,doReconstruction,updateXYScale)
+    
 
     def OpenReconstructionSettingsWin(self):
         return self.host.OpenReconstructionSettingsWin()
-
-    def OpenReconstructionToDiskSequenceWin(self):
-        return self.host.OpenReconstructionToDiskSequenceWin()
-
-    def OpenStroboWin(self):
-        return self.host.OpenStroboWin()
-
-    def RecordStroboscopeFixedFrequency(self, numberOfPeriods):
-        return self.host.RecordStroboscopeFixedFrequency(numberOfPeriods)
-
-    def RecordStroboFrequencyScan(self):
-        return self.host.RecordStroboFrequencyScan(self)
     
-    def ResetCorrSegment(self,dimension=1):
-        return self.host.ResetCorrSegment(dimension)
+    def ResetCorrSegment(self):
+        return self.host.ResetCorrSegment()
 
     def ResetCorrZone(self):
         return self.host.ResetCorrZone()
@@ -379,6 +396,15 @@ class pyKoalaRemoteClient:
         return self.host.ResetUserDefinedMaskZone()
 
     def SaveImageFloatToFile(self, winId, fileName, useBinFormat=False):
+        '''
+        winId
+        1: hologram
+        2: amplitude image
+        4: phase image
+        8: Fourier image
+        
+        useBinFormat: default, False is text, True (".bin")
+        '''
         return self.host.SaveImageFloatToFile(winId,fileName,useBinFormat)
     
     def SaveImageToFile(self, winId, fileName):
@@ -388,46 +414,29 @@ class pyKoalaRemoteClient:
         return self.host.SaveReconstructionSettings()
 
     def SelectDisplayWL(self, winId):
+        '''
+        winId
+        8192: phase lambda 1 image
+        16384: phase lambda 2 image
+        32768: phase long synthetic wavelength image
+        65536: phase short synthetic wavelength image
+        2048: amplitude (intensity) lambda 1 image
+        4096: amplitude (intensity) lambda 2 image
+        512: Fourier lambda 1 image
+        1024: Fourier lambda 2 image
+        '''
         return self.host.SelectDisplayWL(winId)
     
     def SelectTopoZone(self, top, left, width, height):
         return self.host.SelectTopoZone(top, left, width, height)
 
-    def SetAutomaticIntensityThresholdFilterToEnabledState(self):
-        return self.host.SetAutomaticIntensityThresholdFilterToEnabledState()
-
-    def SetAutomaticPhaseGradientThresholdFilterToEnabledState(self):
-        return self.host.SetAutomaticPhaseGradientThresholdFilterToEnabledState()
-
     def SetCameraShutterUs(self, shutterUs):
         return self.host.SetCameraShutterUs(shutterUs)
-
-    def SetFastHologramsSequenceRecordingModeBuffer(self, state):
-        return self.host.SetFastHologramsSequenceRecordingModeBuffer(state)
-
-    def SetFastHologramsSequenceRecordNumberOfHolograms(self, numberOfHolograms):
-        return self.host.SetFastHologramsSequenceRecordNumberOfHolograms(numberOfHolograms)
-
-    def SetFastHologramsSequenceRecordPath(self, path):
-        return self.host.SetFastHologramsSequenceRecordPath(path)
+    
 
     def SetIntensityProfileState(self, state):
         return self.host.SetIntensityProfileState(state)
 
-    def SetIntensityThresholdFilterState(self, state):
-        return self.host.SetIntensityThresholdFilterState(state)
-
-    def SetIntensityThresholdFilterValueInPercent(self, valueInPercent): #example if 30%, enter 30 as value
-        return self.host.SetIntensityThresholdFilterValueInPercent(valueInPercent)
-
-    def SetInteractionModeWhenAddingMaskZone(self, mode): #mode is chosen between [1,2,3,4]
-        return self.host.SetInteractionModeWhenAddingMaskZone(mode)
-
-    def SetPhaseGradientThresholdFilterState(self, state):
-        return self.host.SetPhaseGradientThresholdFilterState(state)
-
-    def SetPhaseGradientThresholdFilterValueInPercent(self, valueInPercent): #example if 30%, enter 30 as value
-        return self.host.SetPhaseGradientThresholdFilterValueInPercent(valueInPercent)
 
     def SetPhaseProfileState(self, state=False):
         return self.host.SetPhaseProfileState(state)
@@ -435,63 +444,61 @@ class pyKoalaRemoteClient:
     def SetRecDistCM(self,distCM):
         return self.host.SetRecDistCM(distCM)
 
-    def SetReconstructionToDiskDataType(self, recordPhaseAsBin, recordPhaseAsText, recordPhaseAsTiff, recordIntensityAsBin, recordIntensityAsText, recordIntensityAsTiff):
-        return self.host.SetReconstructionToDiskDataType(recordPhaseAsBin, recordPhaseAsText, recordPhaseAsTiff, recordIntensityAsBin, recordIntensityAsText, recordIntensityAsTiff)
-
-    def SetReconstructionToDiskSequencePath(self, path):
-        return self.host.SetReconstructionToDiskSequencePath(path)
-
     def SetSourceState(self, srcId, state, useLogicalId=True):
         return self.host.SetSourceState(srcId, state, useLogicalId)
-
-    def SetStroboscopeChannel1Parameters(self, channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType):
-        return self.host.SetStroboscopeChannel1Parameters(channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType)
-
-    def SetStroboscopeChannel2Parameters(self, channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType):
-        return self.host.SetStroboscopeChannel1Parameters(channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType)
-
-    def SetStroboscopeChannel3Parameters(self, channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType):
-        return self.host.SetStroboscopeChannel1Parameters(channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType)
-
-    def SetStroboscopeChannel4Parameters(self, channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType):
-        return self.host.SetStroboscopeChannel1Parameters(channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType)
-
-    def SetStroboscopeFixedFrequency(self, frequency):
-        return self.host.SetStroboscopeFixedFrequency(frequency)
-
-    def SetStroboscopeFrequencyApproachEnabled(self, status):
-        return self.host.SetStroboscopeFrequencyApproachEnabled(status)
-
-    def SetStroboscopeFrequencyApproachParameters(self, startFrequency_Hz, endFrequency_Hz, stepSize_Hz, waitTime_ms):
-        return self.host.SetStroboscopeFrequencyApproachParameters(startFrequency_Hz, endFrequency_Hz, stepSize_Hz, waitTime_ms)
-
-    def SetStroboscopeFrequencyScanEnabled(self, status):
-        return self.host.SetStroboscopeFrequencyScanEnabled(status)
-
-    def SetStroboscopeFrequencyScanParameters(self, minimumFrequency_Hz, maximumFrequency_Hz, stepSize_Hz, numberOfPeriodsPerFrequency, isDecreasing):
-        return self.host.SetStroboscopeFrequencyScanParameters(minimumFrequency_Hz, maximumFrequency_Hz, stepSize_Hz, numberOfPeriodsPerFrequency, isDecreasing)
-
-    def SetStroboscopeLaserPulseDutyCycle(self, dutyCycle):
-        return self.host.SetStroboscopeLaserPulseDutyCycle(dutyCycle)
-
-    def SetStroboscopeNumberOfSamplesPerPeriod(self, samplesPerPeriod):
-        return self.host.SetStroboscopeNumberOfSamplesPerPeriod(samplesPerPeriod)
-
-    def SetStroboscopeRecordAtStartStatus(self, status):
-        return self.host.SetStroboscopeRecordAtStartStatus(status)
-
-    def SetStroboscopeRecordDataType(self, recordPhaseAsBin, recordPhaseAsTiff, recordIntensityAsBin, recordIntensityAsTiff):
-        return self.host.SetStroboscopeRecordDataType(recordPhaseAsBin, recordPhaseAsTiff, recordIntensityAsBin, recordIntensityAsTiff)
-
-    def SetStroboscopeRecordPath(self, path):
-        return self.host.SetStroboscopeRecordPath(path)
-
+    
     def SetUnwrap2DMethod(self, method):
+        '''
+        method
+        0: Discrete Cosine Transform (DCT)
+        1: Path-following (also known as Quality Path)
+        '''
         return self.host.SetUnwrap2DMethod(method)
     
     def SetUnwrap2DState(self,state=False):
         return self.host.SetUnwrap2DState(state)
 
+
+    def SingleReconstruction(self):
+        return self.host.SingleReconstruction()
+
+
+##The mask remote function
+        
+    def OpenMaskSettingsWin(self):
+        return self.host.OpenMaskSettingsWin()
+        
+    def CloseMaskSettingsWin(self):
+        return self.host.CloseMaskSettingsWin()
+    
+    def SetAutomaticIntensityThresholdFilterToEnabledState(self):
+        return self.host.SetAutomaticIntensityThresholdFilterToEnabledState()
+        
+    def SetIntensityThresholdFilterState(self, state):
+        return self.host.SetIntensityThresholdFilterState(state)
+
+    def SetIntensityThresholdFilterValueInPercent(self, valueInPercent): #example if 30%, enter 30 as value
+        return self.host.SetIntensityThresholdFilterValueInPercent(valueInPercent)
+    
+    def SetAutomaticPhaseGradientThresholdFilterToEnabledState(self):
+        return self.host.SetAutomaticPhaseGradientThresholdFilterToEnabledState()
+    
+    def SetPhaseGradientThresholdFilterState(self, state):
+        return self.host.SetPhaseGradientThresholdFilterState(state)
+
+    def SetPhaseGradientThresholdFilterValueInPercent(self, valueInPercent): #example if 30%, enter 30 as value
+        return self.host.SetPhaseGradientThresholdFilterValueInPercent(valueInPercent)
+    
+    def AddEllipticalUserDefinedMaskZoneToPhase(self, centerX, centerY, radiusX, radiusY):
+        return self.host.AddEllipticalUserDefinedMaskZoneToPhase(centerX, centerY, radiusX, radiusY)
+
+    def AddRectangularUserDefinedMaskZoneToPhase(self, top, left, width, height):
+        return self.host.AddRectangularUserDefinedMaskZoneToPhase(top, left, width, height)  
+    
+    def SetInteractionModeWhenAddingMaskZone(self, mode): #mode is chosen between [1,2,3,4]
+        return self.host.SetInteractionModeWhenAddingMaskZone(mode)
+
+    
     def SetUserDefinedMaskState(self, state):
         return self.host.SetUserDefinedMaskState(state)
 
@@ -504,28 +511,187 @@ class pyKoalaRemoteClient:
     def SetWavelengthFilterState(self, state):
         return self.host.SetWavelengthFilterState(state)
 
-    # type = 1 for Long-pass type filter,
-    # type = 2 for Short-pass type filter,
-    # type = 3 for Band-pass type filter,
-    # type = 4 for Band-stop type filter
     def SetWavelengthFilterType(self, type):
+        """
+        type = 1 for Long-pass type filter,
+        type = 2 for Short-pass type filter,
+        type = 3 for Band-pass type filter,
+        type = 4 for Band-stop type filter
+        """
         return self.host.SetWavelengthFilterType(type)
 
-    def SingleReconstruction(self):
-        return self.host.SingleReconstruction()
-
+##The sequence remote functions
+        
+    ### Fast Holograms Record
+        
+    def CloseFastHologramsRecordWin(self):
+        return self.host.CloseFastHologramsRecordWin()
+    
+    def OpenFastHologramsRecordWin(self):
+        return self.host.OpenFastHologramsRecordWin()
+    
+    def SetFastHologramsSequenceRecordNumberOfHolograms(self, numberOfHolograms):
+        return self.host.SetFastHologramsSequenceRecordNumberOfHolograms(numberOfHolograms)
+    
+    def SetFastHologramsSequenceRecordingModeBuffer(self, state):
+        return self.host.SetFastHologramsSequenceRecordingModeBuffer(state)
+    
+    def SetFastHologramsSequenceRecordPath(self, path):
+        return self.host.SetFastHologramsSequenceRecordPath(path)
+        
     def StartFastHologramsSequenceRecord(self):
         return self.host.StartFastHologramsSequenceRecord()
+    
+    def StopFastHologramsSequenceRecord(self):
+        return self.host.StopFastHologramsSequenceRecord()
+    
+    ### Reconstruction to disk
 
+    def CloseReconstructionToDiskSequenceWin(self):
+        return self.host.CloseReconstructionToDiskSequenceWin()
+
+    def OpenReconstructionToDiskSequenceWin(self):
+        return self.host.OpenReconstructionToDiskSequenceWin()
+    
+    def SetReconstructionToDiskDataType(self, recordPhaseAsBin, recordPhaseAsText, recordPhaseAsTiff, recordIntensityAsBin, recordIntensityAsText, recordIntensityAsTiff):
+        return self.host.SetReconstructionToDiskDataType(recordPhaseAsBin, recordPhaseAsText, recordPhaseAsTiff, recordIntensityAsBin, recordIntensityAsText, recordIntensityAsTiff)
+
+    def SetReconstructionToDiskSequencePath(self, path):
+        return self.host.SetReconstructionToDiskSequencePath(path)
+    
     def StartReconstructionToDisk(self):
         return self.host.StartReconstructionToDisk()
 
+
+
+## The stroboscope remote functions
+        
+    def ApplyNewDutyCycleInLiveMode(self):
+        return self.host.ApplyNewDutyCycleInLiveMode()
+    
+    def ApplyNewVoltageAndOffsetInLiveModeForChannelNumber(self, channelNumber):
+        return self.host.ApplyNewVoltageAndOffsetInLiveModeForChannelNumber(channelNumber)
+    
+    def CloseStroboWin(self):
+        return self.host.CloseStroboWin()
+    
+    def DecreaseStroboscopeAngleStep(self):
+        return self.host.DecreaseStroboscopeAngleStep()
+    
+    def IncreaseStroboscopeAngleStep(self):
+        return self.host.IncreaseStroboscopeAngleStep()
+    
+    def MaximizeStroboscopeNumberOfSamples(self):
+        return self.host.MaximizeStroboscopeNumberOfSamples()
+    
+    def OpenStroboWin(self):
+        return self.host.OpenStroboWin()
+        
+    def RecordStroboscopeFixedFrequency(self, numberOfPeriods):
+        return self.host.RecordStroboscopeFixedFrequency(numberOfPeriods)
+        
+    def RecordStroboscopeFrequencyScan(self):
+        return self.host.RecordStroboscopeFrequencyScan()
+    
+    def SetStroboscopeChannelParameters(self, channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType, chanelID=1):
+        """
+        SetStroboscopeChanelParameters by the chanelId (defaut = 1)
+        channelEnabled (Boolean): true to enable the channel, false to disable it.
+        chosenWaveform (Int32): waveform chosen in the array [1,2,3,4]
+        voltage_mV (Int32): Voltage value in [mV] in the range [0,10000]
+        offset_mV (Int32): Offset value in [mV] in the range [-10000,10000]
+        phaseDelay_deg (Int32): Phase in [degrees] in the range [0,360]
+        offsetType (Int32): Offset type [0 for "Manual", 1 for "0", 2 for "V<0", 3 for "V>0"]
+        """
+        if chanelID == 1:
+            return self.SetStroboscopeChannel1Parameters(channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType)
+        if chanelID == 2:
+            return self.SetStroboscopeChannel2Parameters(channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType)
+        if chanelID == 3:
+            return self.SetStroboscopeChannel3Parameters(channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType)
+        if chanelID == 4:
+            return self.SetStroboscopeChannel4Parameters(channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType)
+    
+    def SetStroboscopeChannel1Parameters(self, channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType):
+        '''
+        channelEnabled (Boolean): true to enable the channel, false to disable it.
+        chosenWaveform (Int32): waveform chosen in the array [1,2,3,4]
+        voltage_mV (Int32): Voltage value in [mV] in the range [0,10000]
+        offset_mV (Int32): Offset value in [mV] in the range [-10000,10000]
+        phaseDelay_deg (Int32): Phase in [degrees] in the range [0,360]
+        offsetType (Int32): Offset type [0 for "Manual", 1 for "0", 2 for "V<0", 3 for "V>0"]
+        '''
+        return self.host.SetStroboscopeChannel1Parameters(channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType)
+
+    def SetStroboscopeChannel2Parameters(self, channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType):
+        '''
+        channelEnabled (Boolean): true to enable the channel, false to disable it.
+        chosenWaveform (Int32): waveform chosen in the array [1,2,3,4]
+        voltage_mV (Int32): Voltage value in [mV] in the range [0,10000]
+        offset_mV (Int32): Offset value in [mV] in the range [-10000,10000]
+        phaseDelay_deg (Int32): Phase in [degrees] in the range [0,360]
+        offsetType (Int32): Offset type [0 for "Manual", 1 for "0", 2 for "V<0", 3 for "V>0"]
+        '''
+        return self.host.SetStroboscopeChannel2Parameters(channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType)
+
+    def SetStroboscopeChannel3Parameters(self, channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType):
+        '''
+        channelEnabled (Boolean): true to enable the channel, false to disable it.
+        chosenWaveform (Int32): waveform chosen in the array [1,2,3,4]
+        voltage_mV (Int32): Voltage value in [mV] in the range [0,10000]
+        offset_mV (Int32): Offset value in [mV] in the range [-10000,10000]
+        phaseDelay_deg (Int32): Phase in [degrees] in the range [0,360]
+        offsetType (Int32): Offset type [0 for "Manual", 1 for "0", 2 for "V<0", 3 for "V>0"]
+        '''
+        return self.host.SetStroboscopeChannel3Parameters(channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType)
+    
+    def SetStroboscopeChannel4Parameters(self, channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType):
+        '''
+        channelEnabled (Boolean): true to enable the channel, false to disable it.
+        chosenWaveform (Int32): waveform chosen in the array [1,2,3,4]
+        voltage_mV (Int32): Voltage value in [mV] in the range [0,10000]
+        offset_mV (Int32): Offset value in [mV] in the range [-10000,10000]
+        phaseDelay_deg (Int32): Phase in [degrees] in the range [0,360]
+        offsetType (Int32): Offset type [0 for "Manual", 1 for "0", 2 for "V<0", 3 for "V>0"]
+        '''
+        return self.host.SetStroboscopeChannel4Parameters(channelEnabled, chosenWaveform, voltage_mV, offset_mV, phaseDelay_deg, offsetType)
+
+    def SetStroboscopeFixedFrequency(self, frequency):
+        return self.host.SetStroboscopeFixedFrequency(frequency)
+    
+    def SetStroboscopeFrequencyScanEnabled(self, status=False):
+        return self.host.SetStroboscopeFrequencyScanEnabled(status)
+    
+    def SetStroboscopeFrequencyScanParameters(self, minimumFrequency_Hz, maximumFrequency_Hz, stepSize_Hz, numberOfPeriodsPerFrequency, isDecreasing=False):
+        '''
+        minimumFrequency_Hz (Double): minimal frequency in [Hz] for the frequency scan.
+        maximumFrequency_Hz (Double): maximal frequency in [Hz] for the frequency scan.
+        stepSize_Hz (Double): frequency difference in [Hz] between 2 iterations (e.g with a frequency start at 1[kHz], and a step size of 200[Hz], the next frequency will be at 1.2[kHz], if we are increasing the frequency.
+        numberOfPeriodsPerFrequency (Int32): number of periods applied on each frequency iteration.
+        isDecreasing (Boolean): 
+            true to decrease frequencies during the frequency scan (the scan will start at maximumFrequency_Hz and end at minimumFrequency_Hz while taking into account the stepSize_Hz), 
+            false to increase frequencies during the frequency scan (the scan will start at minimumFrequency_Hz and end at maximumFrequency_Hz while taking into account the stepSize_Hz).
+        '''
+        return self.host.SetStroboscopeFrequencyScanParameters(minimumFrequency_Hz, maximumFrequency_Hz, stepSize_Hz, numberOfPeriodsPerFrequency, isDecreasing=False)
+    
+    def SetStroboscopeLaserPulseDutyCycle(self, dutyCycle):
+        return self.host.SetStroboscopeLaserPulseDutyCycle(dutyCycle)
+    
+    def SetStroboscopeNumberOfSamplesPerPeriod(self, samplesPerPeriod):
+        return self.host.SetStroboscopeNumberOfSamplesPerPeriod(samplesPerPeriod)
+    
+    def SetStroboscopeRecordAtStartStatus(self, status=False):
+        return self.host.SetStroboscopeRecordAtStartStatus(status)
+    
+    def SetStroboscopeRecordDataType(self, recordPhaseAsBin, recordPhaseAsTiff, recordIntensityAsBin, recordIntensityAsTiff):
+        return self.host.SetStroboscopeRecordDataType(recordPhaseAsBin, recordPhaseAsTiff, recordIntensityAsBin, recordIntensityAsTiff)
+    
+    def SetStroboscopeRecordPath(self, path):
+        return self.host.SetStroboscopeRecordPath(path)
+    
     def StartStroboscopeFixedFrequency(self, cycleMode, numberOfPeriods):
         return self.host.StartStroboscopeFixedFrequency(cycleMode, numberOfPeriods)
-
-    def StopFastHologramsSequenceRecord(self):
-        return self.host.StopFastHologramsSequenceRecord()
-
+    
     def StopStroboscope(self):
         return self.host.StopStroboscope()
 
@@ -535,7 +701,23 @@ if __name__ == '__main__' :
     remote = pyKoalaRemoteClient()
     remote.ConnectAndLoginDialog()
     remote.OpenConfigDialog()
+    remote.LoadHolo(r'C:\tmp\holo.tif',1)
     remote.OpenHoloWin()
     remote.OpenIntensityWin()
     remote.OpenPhaseWin()
+    remote.OpenReconstructionSettingsWin()
+    time.sleep(0.1) #wait window is open
+    remote.AddCorrSegment(50,10,800,0)
+
+    remote.AddCorrSegment(50,50,200,1)
+    remote.ComputePhaseCorrection(0,1)
+    remote.ComputePhaseCorrection(1,2)
+    remote.ResetCorrSegment()
+    remote.SetUnwrap2DState(True)
+    remote.AddCorrZone(100,100,900,900)
+    remote.ComputePhaseCorrection(4,2)
+    remote.ResetCorrZone()
+    remote.SetUnwrap2DState(False)
+    remote.ResetPhaseOffsetAdjustmentZone()
+    remote.AddPhaseOffsetAdjustmentZone(50,50, 200,200)
     remote.Logout()
